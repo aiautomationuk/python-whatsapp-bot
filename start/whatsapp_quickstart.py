@@ -33,7 +33,7 @@ def send_whatsapp_message():
         "messaging_product": "whatsapp",
         "to": RECIPIENT_WAID,
         "type": "template",
-        "template": {"name": "hello_world", "language": {"code": "en_US"}},
+        "template": {"name": "infobot_website_greeting", "language": {"code": "en"}},
     }
     response = requests.post(url, headers=headers, json=data)
     return response
