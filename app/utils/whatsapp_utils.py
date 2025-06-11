@@ -3,7 +3,7 @@ import os
 import requests
 import json
 import re
-from flask import current_app
+from flask import current_app, jsonify
 from app.services.openai_service import generate_response as openai_generate_response
 
 logger = logging.getLogger(__name__)
@@ -47,13 +47,10 @@ def send_whatsapp_message(to_number, message_text):
         logger.error(f"Error sending WhatsApp message: {str(e)}")
         return False
 
-# ... rest of the message processing code from my previous response ...
-
 def log_http_response(response):
     logging.info(f"Status: {response.status_code}")
     logging.info(f"Content-type: {response.headers.get('content-type')}")
     logging.info(f"Body: {response.text}")
-
 
 def get_text_message_input(recipient, text):
     return json.dumps(
@@ -66,33 +63,33 @@ def get_text_message_input(recipient, text):
         }
     )
 
-
 def send_message(data):
-    headers = {
-        "Content-type": "application/json",
-        "Authorization": f"Bearer {current_app.config['ACCESS_TOKEN']}",
-    }
-
-    url = f"https://graph.facebook.com/{current_app.config['VERSION']}/{current_app.config['PHONE_NUMBER_ID']}/messages"
-
     try:
-        response = requests.post(
-            url, data=data, headers=headers, timeout=10
-        )  # 10 seconds timeout as an example
-        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-    except requests.Timeout:
-        logging.error("Timeout occurred while sending message")
-        return jsonify({"status": "error", "message": "Request timed out"}), 408
-    except (
-        requests.RequestException
-    ) as e:  # This will catch any general request exception
-        logging.error(f"Request failed due to: {e}")
-        return jsonify({"status": "error", "message": "Failed to send message"}), 500
-    else:
-        # Process the response as normal
+        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN")
+        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("PHONE_NUMBER_ID")
+        version = os.getenv("VERSION", "v18.0")
+        
+        if not access_token or not phone_number_id:
+            logger.error("Missing WhatsApp credentials")
+            return jsonify({"status": "error", "message": "Missing WhatsApp credentials"}), 500
+
+        headers = {
+            "Content-type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+
+        url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
+
+        response = requests.post(url, data=data, headers=headers, timeout=10)
+        response.raise_for_status()
         log_http_response(response)
         return response
-
+    except requests.Timeout:
+        logger.error("Timeout occurred while sending message")
+        return jsonify({"status": "error", "message": "Request timed out"}), 408
+    except requests.RequestException as e:
+        logger.error(f"Request failed due to: {e}")
+        return jsonify({"status": "error", "message": "Failed to send message"}), 500
 
 def process_text_for_whatsapp(text):
     # Remove brackets
@@ -111,7 +108,6 @@ def process_text_for_whatsapp(text):
 
     return whatsapp_style_text
 
-
 def process_whatsapp_message(body):
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
     name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
@@ -128,9 +124,8 @@ def process_whatsapp_message(body):
     response = process_text_for_whatsapp(response)
     logging.info(f"Processed response for WhatsApp: {response}")
 
-    data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response)
+    data = get_text_message_input(wa_id, response)
     send_message(data)
-
 
 def is_valid_whatsapp_message(body):
     """
