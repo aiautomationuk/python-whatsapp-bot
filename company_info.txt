@@ -1,0 +1,34 @@
+Company Information for Infobot Technologies
+
+Company Name: Infobot Technologies
+Location: Manchester, UK
+Contact Information:
+- Email: info@infobot.co.uk
+- Phone: +447464177761
+
+Business Hours:
+Monday - Friday, 9:00 AM - 5:00 PM
+
+Services Offered:
+1. WhatsApp Business API Integration
+   - Custom WhatsApp bot development
+   - Business API integration
+   - Automated customer service solutions
+
+2. Custom Chatbot Development
+   - AI-powered chatbots
+   - Custom conversation flows
+   - Integration with existing systems
+
+3. AI-Powered Customer Service Solutions
+   - Automated customer support
+   - 24/7 response capabilities
+   - Custom AI training for specific business needs
+
+Additional Information:
+- We specialize in creating intelligent, automated solutions for businesses
+- Our services help businesses automate customer interactions
+- We provide ongoing support and maintenance for all our solutions
+- All our solutions are customizable to meet specific business needs
+
+For any information not listed here, please contact us directly at info@infobot.co.uk 

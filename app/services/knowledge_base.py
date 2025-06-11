@@ -23,17 +23,17 @@ class KnowledgeBase:
                 self.knowledge = {
                     "company_info": {
                         "name": "Infobot Technologies",
-                        "address": "Your actual address here",
+                        "address": "Manchester, UK",
                         "contact": {
                             "email": "info@infobot.co.uk",
-                            "phone": "Your actual phone number"
+                            "phone": "+447464177761"
                         },
                         "services": [
                             "WhatsApp Business API Integration",
                             "Custom Chatbot Development",
                             "AI-Powered Customer Service Solutions"
                         ],
-                        "business_hours": "Your actual business hours"
+                        "business_hours": "Monday - Friday, 9:00 AM - 5:00 PM"
                     }
                 }
                 self.save_knowledge()

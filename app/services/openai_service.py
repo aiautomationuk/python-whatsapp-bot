@@ -158,19 +158,11 @@ def generate_response(message, user_id, user_name=None):
         # Get or create thread for this user
         thread = get_or_create_thread(user_id)
         
-        # Get relevant information from knowledge base
-        relevant_info = knowledge_base.get_relevant_info(message)
-        
-        # Add user message to thread with context
-        context = f"""Here is the relevant information from our knowledge base:
-{json.dumps(relevant_info, indent=2)}
-
-User message: {message}"""
-        
+        # Add user message to thread (no local knowledge base context)
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=context
+            content=message
         )
         
         # Get assistant ID from environment variable
