@@ -177,15 +177,17 @@ def generate_response(message, user_id, user_name=None):
             logging.info(f"Assistant model: {assistant.model}")
             logging.info(f"Assistant instructions: {assistant.instructions[:200]}...")
             
-            # Log attached files
-            files = client.beta.assistants.files.list(assistant_id=assistant_id)
-            if files.data:
-                logging.info("Attached files:")
-                for file in files.data:
-                    file_details = client.files.retrieve(file.id)
-                    logging.info(f"- {file_details.filename} (ID: {file.id})")
-            else:
-                logging.warning("No files attached to assistant!")
+            # Log attached files using the correct API endpoint
+            try:
+                files = client.beta.assistants.files.list(assistant_id=assistant_id)
+                if files.data:
+                    logging.info("Attached files:")
+                    for file in files.data:
+                        logging.info(f"- File ID: {file.id}")
+                else:
+                    logging.warning("No files attached to assistant!")
+            except Exception as e:
+                logging.warning(f"Could not retrieve file list: {str(e)}")
                 
         except Exception as e:
             logging.error(f"Error retrieving assistant details: {str(e)}")
