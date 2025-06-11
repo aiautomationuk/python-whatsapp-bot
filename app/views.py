@@ -50,8 +50,8 @@ def handle_message():
         from_number = message.get("from")
         logging.info(f"Received message from: {from_number}")
         
-        # Get the bot's number from configuration
-        bot_number = current_app.config.get("RECIPIENT_WAID", "").replace("+", "")
+        # Get the bot's number from metadata
+        bot_number = body["entry"][0]["changes"][0]["value"]["metadata"]["display_phone_number"].replace("+", "")
         
         if from_number != bot_number:  # Ignore messages from our own number
             try:
