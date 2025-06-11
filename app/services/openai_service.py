@@ -8,7 +8,10 @@ import logging
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
-client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.openai.com/v2")
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    default_headers={"OpenAI-Beta": "assistants=v2"}
+)
 
 
 def upload_file(path):
@@ -50,14 +53,11 @@ def run_assistant(thread, name):
     # Run the assistant
     run = client.beta.threads.runs.create(
         thread_id=thread.id,
-        assistant_id=assistant.id,
-        # instructions=f"You are having a conversation with {name}",
+        assistant_id=assistant.id
     )
 
     # Wait for completion
-    # https://platform.openai.com/docs/assistants/how-it-works/runs-and-run-steps#:~:text=under%20failed_at.-,Polling%20for%20updates,-In%20order%20to
     while run.status != "completed":
-        # Be nice to the API
         time.sleep(0.5)
         run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
 
@@ -88,7 +88,7 @@ def generate_response(message_body, wa_id, name):
     message = client.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
-        content=message_body,
+        content=message_body
     )
 
     # Run the assistant and get the new message
