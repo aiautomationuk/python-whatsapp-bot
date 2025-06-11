@@ -10,7 +10,7 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def check_assistant():
-    """Check assistant configuration and attached files"""
+    """Check assistant configuration and tools"""
     try:
         assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
         if not assistant_id:
@@ -30,19 +30,17 @@ def check_assistant():
         print(assistant.instructions)
         
         # Get attached files
-        files = client.beta.assistants.files.list(assistant_id=assistant_id)
-        print("\nAttached Files:")
-        print("=" * 50)
-        if files.data:
-            for file in files.data:
-                print(f"File ID: {file.id}")
-                # Get file details
-                file_details = client.files.retrieve(file.id)
-                print(f"Filename: {file_details.filename}")
-                print(f"Purpose: {file_details.purpose}")
-                print("-" * 30)
-        else:
-            print("No files attached to the assistant!")
+        try:
+            files = client.beta.assistants.files.list(assistant_id=assistant_id)
+            print("\nAttached Files:")
+            print("=" * 50)
+            if files.data:
+                for file in files.data:
+                    print(f"File ID: {file.id}")
+            else:
+                print("No files attached to the assistant!")
+        except Exception as e:
+            print(f"Error listing files: {str(e)}")
             
     except Exception as e:
         print(f"Error: {str(e)}")
