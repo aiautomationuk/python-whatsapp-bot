@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-def update_assistant():
+def upload_and_update():
     try:
         # Initialize OpenAI client
         client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -19,10 +19,18 @@ def update_assistant():
         if not assistant_id:
             raise ValueError("OPENAI_ASSISTANT_ID not found in environment variables")
             
-        # Update the assistant with the file search tool
+        # Upload the new file
+        with open("infobot_info.txt", "rb") as file:
+            uploaded_file = client.files.create(
+                file=file,
+                purpose="assistants"
+            )
+        logger.info(f"File uploaded successfully with ID: {uploaded_file.id}")
+        
+        # Update the assistant with the new file
         updated_assistant = client.beta.assistants.update(
             assistant_id=assistant_id,
-            tools=[{"type": "file_search"}]
+            file_ids=[uploaded_file.id]
         )
         
         logger.info(f"Assistant updated successfully!")
@@ -32,8 +40,8 @@ def update_assistant():
         logger.info(f"Assistant tools: {updated_assistant.tools}")
         
     except Exception as e:
-        logger.error(f"Error updating assistant: {str(e)}")
+        logger.error(f"Error during upload and update: {str(e)}")
         raise
 
 if __name__ == "__main__":
-    update_assistant() 
+    upload_and_update() 

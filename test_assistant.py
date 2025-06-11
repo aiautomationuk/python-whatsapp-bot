@@ -1,76 +1,91 @@
-from openai import OpenAI
 import os
+from openai import OpenAI
 from dotenv import load_dotenv
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# Load environment variables
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def test_assistant():
-    """Test the assistant with a simple question"""
     try:
-        # Get assistant ID from environment
-        assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
-        if not assistant_id:
-            print("Error: OPENAI_ASSISTANT_ID not found in environment variables")
-            return
-
-        # Create a new thread
-        thread = client.beta.threads.create()
-        print(f"Created new thread: {thread.id}")
-
-        # Add a test message
-        message = "What is Infobot Technologies' phone number?"
-        client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=message
-        )
-        print(f"\nSent message: {message}")
-
-        # Run the assistant
-        run = client.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=assistant_id
-        )
-        print(f"Started run: {run.id}")
-
-        # Wait for completion
-        while True:
-            run_status = client.beta.threads.runs.retrieve(
-                thread_id=thread.id,
-                run_id=run.id
-            )
-            if run_status.status == 'completed':
-                break
-            elif run_status.status in ['failed', 'cancelled', 'expired']:
-                print(f"Run failed with status: {run_status.status}")
-                return
-            print("Waiting for response...")
-            import time
-            time.sleep(1)
-
-        # Get the response
-        messages = client.beta.threads.messages.list(
-            thread_id=thread.id,
-            order='desc',
-            limit=1
-        )
+        # Initialize OpenAI client
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        assistant_id = os.getenv('OPENAI_ASSISTANT_ID')
         
-        if messages.data and messages.data[0].content:
-            response = messages.data[0].content[0].text.value
+        if not assistant_id:
+            raise ValueError("OPENAI_ASSISTANT_ID not found in environment variables")
+            
+        # Verify assistant configuration
+        logger.info(f"Testing assistant with ID: {assistant_id}")
+        assistant = client.beta.assistants.retrieve(assistant_id)
+        logger.info(f"Assistant name: {assistant.name}")
+        logger.info(f"Assistant model: {assistant.model}")
+        logger.info(f"Assistant tools: {assistant.tools}")
+        
+        # Test questions
+        test_questions = [
+            "What is Infobot Technologies' phone number?",
+            "What are Infobot Technologies' business hours?",
+            "What services does Infobot Technologies offer?",
+            "Where is Infobot Technologies located?"
+        ]
+        
+        for question in test_questions:
+            print(f"\nTesting question: {question}")
+            print("-" * 50)
+            
+            # Create a new thread for each question
+            thread = client.beta.threads.create()
+            logger.info(f"Created new thread: {thread.id}")
+            
+            # Send the question
+            client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=question
+            )
+            
+            # Run the assistant
+            run = client.beta.threads.runs.create(
+                thread_id=thread.id,
+                assistant_id=assistant_id
+            )
+            
+            # Wait for the response
+            while True:
+                run_status = client.beta.threads.runs.retrieve(
+                    thread_id=thread.id,
+                    run_id=run.id
+                )
+                
+                if run_status.status == 'completed':
+                    break
+                elif run_status.status == 'failed':
+                    raise Exception(f"Run failed: {run_status.last_error}")
+                    
+                print("Waiting for response...")
+                time.sleep(2)
+            
+            # Get the response
+            messages = client.beta.threads.messages.list(
+                thread_id=thread.id,
+                limit=1,
+                order='desc'
+            )
+            
             print("\nAssistant's response:")
             print("-" * 50)
-            print(response)
+            print(messages.data[0].content[0].text.value)
             print("-" * 50)
-        else:
-            print("No response received")
-
+            
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error during testing: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     test_assistant() 
