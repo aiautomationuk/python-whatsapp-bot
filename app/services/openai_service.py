@@ -8,7 +8,7 @@ import logging
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.openai.com/v2")
 
 
 def upload_file(path):
