@@ -252,3 +252,17 @@ def clear_user_thread(user_id):
     except Exception as e:
         logging.error(f"Error clearing thread for user {user_id}: {str(e)}")
         return False
+
+
+def create_new_assistant():
+    """
+    Create a new assistant with the latest instructions and return its ID.
+    """
+    try:
+        assistant = create_assistant()
+        logging.info(f"Created new assistant with ID: {assistant.id}")
+        logging.info("Please update your OPENAI_ASSISTANT_ID environment variable with this ID")
+        return assistant.id
+    except Exception as e:
+        logging.error(f"Error creating new assistant: {str(e)}")
+        raise
