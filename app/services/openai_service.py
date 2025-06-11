@@ -9,29 +9,53 @@ from flask import current_app
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
+
 client = OpenAI(
     api_key=OPENAI_API_KEY,
     default_headers={"OpenAI-Beta": "assistants=v2"}
 )
 
-
-def upload_file(path):
-    # Upload a file with an "assistants" purpose
-    file = client.files.create(
-        file=open("../../data/infobot knowledge.pdf", "rb"), purpose="assistants"
-    )
+# Thread storage file path
+THREAD_DB_PATH = "threads.db"
 
 
-def create_assistant():
+def upload_file(file_path):
+    """
+    Upload a file with an "assistants" purpose
+    """
+    try:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+        
+        with open(file_path, "rb") as file:
+            uploaded_file = client.files.create(
+                file=file, 
+                purpose="assistants"
+            )
+        logging.info(f"File uploaded successfully: {uploaded_file.id}")
+        return uploaded_file
+    except Exception as e:
+        logging.error(f"Error uploading file: {str(e)}")
+        raise
+
+
+def create_assistant(file_ids=None):
     """
     Create a new OpenAI Assistant with specific instructions.
     """
     try:
-        assistant = client.beta.assistants.create(
-            name="infobot",
-            instructions="You are a helpful and professional AI assistant for Infobot Technologies. Your primary goal is to provide accurate, concise, and helpful responses to user inquiries.",
-            model="gpt-4-turbo-preview"
-        )
+        assistant_config = {
+            "name": "infobot",
+            "instructions": "You are a helpful and professional AI assistant for Infobot Technologies. Your primary goal is to provide accurate, concise, and helpful responses to user inquiries.",
+            "model": "gpt-4-turbo-preview"
+        }
+        
+        # Add file IDs if provided
+        if file_ids:
+            assistant_config["file_ids"] = file_ids
+        
+        assistant = client.beta.assistants.create(**assistant_config)
+        logging.info(f"Assistant created successfully: {assistant.id}")
         return assistant
     except Exception as e:
         logging.error(f"Error creating assistant: {str(e)}")
@@ -46,11 +70,18 @@ def get_or_create_thread(user_id):
         # Check if thread exists in storage
         thread_id = check_if_thread_exists(user_id)
         if thread_id:
-            return client.beta.threads.retrieve(thread_id)
+            try:
+                thread = client.beta.threads.retrieve(thread_id)
+                return thread
+            except Exception as e:
+                logging.warning(f"Could not retrieve thread {thread_id}: {str(e)}")
+                # If thread doesn't exist on OpenAI side, remove from storage and create new
+                remove_thread(user_id)
         
         # Create new thread if none exists
         thread = client.beta.threads.create()
         store_thread(user_id, thread.id)
+        logging.info(f"New thread created for user {user_id}: {thread.id}")
         return thread
     except Exception as e:
         logging.error(f"Error in get_or_create_thread: {str(e)}")
@@ -61,41 +92,40 @@ def check_if_thread_exists(user_id):
     """
     Check if a thread exists for the given user ID.
     """
-    # TODO: Implement thread storage and retrieval
-    return None
+    try:
+        with shelve.open(THREAD_DB_PATH) as shelf:
+            return shelf.get(str(user_id))
+    except Exception as e:
+        logging.error(f"Error checking thread existence: {str(e)}")
+        return None
 
 
 def store_thread(user_id, thread_id):
     """
     Store the thread ID for a user.
     """
-    # TODO: Implement thread storage
-    pass
+    try:
+        with shelve.open(THREAD_DB_PATH) as shelf:
+            shelf[str(user_id)] = thread_id
+        logging.info(f"Thread {thread_id} stored for user {user_id}")
+    except Exception as e:
+        logging.error(f"Error storing thread: {str(e)}")
 
 
-def run_assistant(thread, name):
-    # Retrieve the Assistant
-    assistant = client.beta.assistants.retrieve(OPENAI_ASSISTANT_ID)
-
-    # Run the assistant
-    run = client.beta.threads.runs.create(
-        thread_id=thread.id,
-        assistant_id=assistant.id
-    )
-
-    # Wait for completion
-    while run.status != "completed":
-        time.sleep(0.5)
-        run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
-
-    # Retrieve the Messages
-    messages = client.beta.threads.messages.list(thread_id=thread.id)
-    new_message = messages.data[0].content[0].text.value
-    logging.info(f"Generated message: {new_message}")
-    return new_message
+def remove_thread(user_id):
+    """
+    Remove thread ID for a user from storage.
+    """
+    try:
+        with shelve.open(THREAD_DB_PATH) as shelf:
+            if str(user_id) in shelf:
+                del shelf[str(user_id)]
+                logging.info(f"Thread removed for user {user_id}")
+    except Exception as e:
+        logging.error(f"Error removing thread: {str(e)}")
 
 
-def generate_response(message, user_id, user_name):
+def generate_response(message, user_id, user_name=None):
     """
     Generate a response using OpenAI's Assistant API.
     """
@@ -110,23 +140,43 @@ def generate_response(message, user_id, user_name):
             content=message
         )
         
+        # Get assistant ID from environment variable
+        assistant_id = OPENAI_ASSISTANT_ID
+        if not assistant_id:
+            raise ValueError("OPENAI_ASSISTANT_ID not found in environment variables")
+        
         # Run the assistant
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
-            assistant_id=current_app.config["OPENAI_ASSISTANT_ID"]
+            assistant_id=assistant_id
         )
         
-        # Wait for the run to complete
-        while True:
+        # Wait for the run to complete with timeout
+        max_wait_time = 60  # 60 seconds timeout
+        wait_time = 0
+        
+        while wait_time < max_wait_time:
             run_status = client.beta.threads.runs.retrieve(
                 thread_id=thread.id,
                 run_id=run.id
             )
+            
             if run_status.status == 'completed':
                 break
             elif run_status.status in ['failed', 'cancelled', 'expired']:
-                raise Exception(f"Run failed with status: {run_status.status}")
+                logging.error(f"Run failed with status: {run_status.status}")
+                return "I apologize, but I encountered an error while processing your request."
+            elif run_status.status == 'requires_action':
+                # Handle function calls if needed
+                logging.info("Run requires action - function calls needed")
+                # Add function call handling here if you have tools enabled
+                
             time.sleep(1)
+            wait_time += 1
+        
+        if wait_time >= max_wait_time:
+            logging.error("Run timed out")
+            return "I apologize, but the request is taking too long to process. Please try again."
         
         # Get the latest message from the assistant
         messages = client.beta.threads.messages.list(
@@ -136,9 +186,46 @@ def generate_response(message, user_id, user_name):
         )
         
         if messages.data and messages.data[0].content:
-            return messages.data[0].content[0].text.value
+            response = messages.data[0].content[0].text.value
+            logging.info(f"Generated response for user {user_id}: {response[:100]}...")
+            return response
+            
         return "I apologize, but I couldn't generate a response at this time."
         
     except Exception as e:
-        logging.error(f"Error generating response: {str(e)}")
+        logging.error(f"Error generating response for user {user_id}: {str(e)}")
         return "I apologize, but I encountered an error while processing your request."
+
+
+def get_thread_messages(user_id, limit=10):
+    """
+    Get conversation history for a user.
+    """
+    try:
+        thread_id = check_if_thread_exists(user_id)
+        if not thread_id:
+            return []
+        
+        messages = client.beta.threads.messages.list(
+            thread_id=thread_id,
+            order='desc',
+            limit=limit
+        )
+        
+        return messages.data
+    except Exception as e:
+        logging.error(f"Error getting thread messages: {str(e)}")
+        return []
+
+
+def clear_user_thread(user_id):
+    """
+    Clear the thread for a user (start fresh conversation).
+    """
+    try:
+        remove_thread(user_id)
+        logging.info(f"Thread cleared for user {user_id}")
+        return True
+    except Exception as e:
+        logging.error(f"Error clearing thread for user {user_id}: {str(e)}")
+        return False
