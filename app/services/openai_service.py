@@ -22,19 +22,20 @@ def upload_file(path):
     )
 
 
-def create_assistant(file):
+def create_assistant():
     """
-    You currently cannot set the temperature for Assistant via the API.
+    Create a new OpenAI Assistant with specific instructions.
     """
-    assistant = client.beta.assistants.create(
-        name="infobot",
-        instructions="You are a helpful and professional AI assistant for Infobot Technologies. Your primary goal is to provide accurate, concise, and helpful responses to user inquiries."
-
-        tools=[{"type": "retrieval"}],
-        model="gpt-4o",
-        file_ids=[file.id],
-    )
-    return assistant
+    try:
+        assistant = client.beta.assistants.create(
+            name="infobot",
+            instructions="You are a helpful and professional AI assistant for Infobot Technologies. Your primary goal is to provide accurate, concise, and helpful responses to user inquiries.",
+            model="gpt-4-turbo-preview"
+        )
+        return assistant
+    except Exception as e:
+        logging.error(f"Error creating assistant: {str(e)}")
+        raise
 
 
 def get_or_create_thread(user_id):
