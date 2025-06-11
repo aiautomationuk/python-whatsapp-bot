@@ -27,6 +27,7 @@ def handle_message():
         response: A tuple containing a JSON response and an HTTP status code.
     """
     body = request.get_json()
+    logging.info(f"Received webhook body: {json.dumps(body, indent=2)}")
     
     # Check if it's a WhatsApp status update
     if (
@@ -44,17 +45,27 @@ def handle_message():
         .get("changes", [{}])[0]
         .get("value", {})
         .get("messages")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0].get("from") != "447399662383"  # Ignore messages from our own number
     ):
-        try:
-            if is_valid_whatsapp_message(body):
-                process_whatsapp_message(body)
-                return jsonify({"status": "ok"}), 200
-        except json.JSONDecodeError:
-            logging.error("Failed to decode JSON")
-            return jsonify({"status": "error", "message": "Invalid JSON provided"}), 400
+        message = body["entry"][0]["changes"][0]["value"]["messages"][0]
+        from_number = message.get("from")
+        logging.info(f"Received message from: {from_number}")
+        
+        if from_number != "447399662383":  # Ignore messages from our own number
+            try:
+                if is_valid_whatsapp_message(body):
+                    logging.info("Processing valid WhatsApp message")
+                    process_whatsapp_message(body)
+                    return jsonify({"status": "ok"}), 200
+                else:
+                    logging.info("Invalid WhatsApp message format")
+            except json.JSONDecodeError:
+                logging.error("Failed to decode JSON")
+                return jsonify({"status": "error", "message": "Invalid JSON provided"}), 400
+        else:
+            logging.info("Ignoring message from our own number")
     
     # If it's not a status update or a valid user message, return ok but don't process
+    logging.info("No valid message to process")
     return jsonify({"status": "ok"}), 200
 
 

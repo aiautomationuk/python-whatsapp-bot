@@ -80,13 +80,18 @@ def process_text_for_whatsapp(text):
 def process_whatsapp_message(body):
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
     name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+    logging.info(f"Processing message from {name} ({wa_id})")
 
     message = body["entry"][0]["changes"][0]["value"]["messages"][0]
     message_body = message["text"]["body"]
+    logging.info(f"Message content: {message_body}")
 
     # Generate response using OpenAI Assistant
     response = openai_generate_response(message_body, wa_id, name)
+    logging.info(f"OpenAI response: {response}")
+    
     response = process_text_for_whatsapp(response)
+    logging.info(f"Processed response for WhatsApp: {response}")
 
     data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response)
     send_message(data)
