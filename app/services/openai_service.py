@@ -5,6 +5,8 @@ import os
 import time
 import logging
 from flask import current_app
+from app.services.knowledge_base import knowledge_base
+import json
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -53,12 +55,19 @@ def create_assistant(file_ids=None):
 3. Handling basic customer service inquiries
 4. Explaining our service offerings and pricing
 
+You must:
+1. ONLY use information provided in the knowledge base
+2. If you don't know something or if the information isn't in the knowledge base, say "I don't have that information in my knowledge base. Please contact info@infobot.co.uk for more details."
+3. Never make up or guess information
+4. Always be honest about what you know and don't know
+
 You must NOT:
 1. Write or debug code
 2. Answer general questions unrelated to Infobot Technologies
 3. Provide technical support for non-Infobot products
 4. Generate creative content or stories
 5. Answer questions about other companies or services
+6. Make up information that isn't in the knowledge base
 
 If asked about anything outside these boundaries, politely explain that you can only assist with questions about Infobot Technologies and our services.
 
@@ -149,11 +158,19 @@ def generate_response(message, user_id, user_name=None):
         # Get or create thread for this user
         thread = get_or_create_thread(user_id)
         
-        # Add user message to thread
+        # Get relevant information from knowledge base
+        relevant_info = knowledge_base.get_relevant_info(message)
+        
+        # Add user message to thread with context
+        context = f"""Here is the relevant information from our knowledge base:
+{json.dumps(relevant_info, indent=2)}
+
+User message: {message}"""
+        
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=message
+            content=context
         )
         
         # Get assistant ID from environment variable
