@@ -158,7 +158,7 @@ def generate_response(message, user_id, user_name=None):
         # Get or create thread for this user
         thread = get_or_create_thread(user_id)
         
-        # Add user message to thread (no local knowledge base context)
+        # Add user message to thread
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
@@ -176,6 +176,17 @@ def generate_response(message, user_id, user_name=None):
             logging.info(f"Using assistant: {assistant.name} (ID: {assistant.id})")
             logging.info(f"Assistant model: {assistant.model}")
             logging.info(f"Assistant instructions: {assistant.instructions[:200]}...")
+            
+            # Log attached files
+            files = client.beta.assistants.files.list(assistant_id=assistant_id)
+            if files.data:
+                logging.info("Attached files:")
+                for file in files.data:
+                    file_details = client.files.retrieve(file.id)
+                    logging.info(f"- {file_details.filename} (ID: {file.id})")
+            else:
+                logging.warning("No files attached to assistant!")
+                
         except Exception as e:
             logging.error(f"Error retrieving assistant details: {str(e)}")
         
