@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import time
 import logging
+from flask import current_app
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -17,7 +18,7 @@ client = OpenAI(
 def upload_file(path):
     # Upload a file with an "assistants" purpose
     file = client.files.create(
-        file=open("../../data/airbnb-faq.pdf", "rb"), purpose="assistants"
+        file=open("../../data/infobot knowledge.pdf", "rb"), purpose="assistants"
     )
 
 
@@ -41,15 +42,39 @@ def create_assistant(file):
     return assistant
 
 
-# Use context manager to ensure the shelf file is closed properly
-def check_if_thread_exists(wa_id):
-    with shelve.open("threads_db") as threads_shelf:
-        return threads_shelf.get(wa_id, None)
+def get_or_create_thread(user_id):
+    """
+    Get an existing thread for a user or create a new one.
+    """
+    try:
+        # Check if thread exists in storage
+        thread_id = check_if_thread_exists(user_id)
+        if thread_id:
+            return client.beta.threads.retrieve(thread_id)
+        
+        # Create new thread if none exists
+        thread = client.beta.threads.create()
+        store_thread(user_id, thread.id)
+        return thread
+    except Exception as e:
+        logging.error(f"Error in get_or_create_thread: {str(e)}")
+        raise
 
 
-def store_thread(wa_id, thread_id):
-    with shelve.open("threads_db", writeback=True) as threads_shelf:
-        threads_shelf[wa_id] = thread_id
+def check_if_thread_exists(user_id):
+    """
+    Check if a thread exists for the given user ID.
+    """
+    # TODO: Implement thread storage and retrieval
+    return None
+
+
+def store_thread(user_id, thread_id):
+    """
+    Store the thread ID for a user.
+    """
+    # TODO: Implement thread storage
+    pass
 
 
 def run_assistant(thread, name):
@@ -74,30 +99,50 @@ def run_assistant(thread, name):
     return new_message
 
 
-def generate_response(message_body, wa_id, name):
-    # Check if there is already a thread_id for the wa_id
-    thread_id = check_if_thread_exists(wa_id)
-
-    # If a thread doesn't exist, create one and store it
-    if thread_id is None:
-        logging.info(f"Creating new thread for {name} with wa_id {wa_id}")
-        thread = client.beta.threads.create()
-        store_thread(wa_id, thread.id)
-        thread_id = thread.id
-
-    # Otherwise, retrieve the existing thread
-    else:
-        logging.info(f"Retrieving existing thread for {name} with wa_id {wa_id}")
-        thread = client.beta.threads.retrieve(thread_id)
-
-    # Add message to thread
-    message = client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=message_body
-    )
-
-    # Run the assistant and get the new message
-    new_message = run_assistant(thread, name)
-
-    return new_message
+def generate_response(message, user_id, user_name):
+    """
+    Generate a response using OpenAI's Assistant API.
+    """
+    try:
+        # Get or create thread for this user
+        thread = get_or_create_thread(user_id)
+        
+        # Add user message to thread
+        client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=message
+        )
+        
+        # Run the assistant
+        run = client.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=current_app.config["OPENAI_ASSISTANT_ID"]
+        )
+        
+        # Wait for the run to complete
+        while True:
+            run_status = client.beta.threads.runs.retrieve(
+                thread_id=thread.id,
+                run_id=run.id
+            )
+            if run_status.status == 'completed':
+                break
+            elif run_status.status in ['failed', 'cancelled', 'expired']:
+                raise Exception(f"Run failed with status: {run_status.status}")
+            time.sleep(1)
+        
+        # Get the latest message from the assistant
+        messages = client.beta.threads.messages.list(
+            thread_id=thread.id,
+            order='desc',
+            limit=1
+        )
+        
+        if messages.data and messages.data[0].content:
+            return messages.data[0].content[0].text.value
+        return "I apologize, but I couldn't generate a response at this time."
+        
+    except Exception as e:
+        logging.error(f"Error generating response: {str(e)}")
+        return "I apologize, but I encountered an error while processing your request."
