@@ -1,9 +1,50 @@
 import logging
-from flask import current_app, jsonify
-import json
+import os
 import requests
-from app.services.openai_service import generate_response as openai_generate_response
-import re
+import json
+
+logger = logging.getLogger(__name__)
+
+def send_whatsapp_message(to_number, message_text):
+    """Send WhatsApp message using your existing format"""
+    try:
+        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN")
+        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("PHONE_NUMBER_ID")
+        version = os.getenv("VERSION", "v18.0")
+        
+        if not access_token or not phone_number_id:
+            logger.error("Missing WhatsApp credentials")
+            return False
+        
+        headers = {
+            "Content-type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+        
+        data = json.dumps({
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to_number,
+            "type": "text",
+            "text": {"preview_url": False, "body": message_text},
+        })
+        
+        url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
+        
+        response = requests.post(url, data=data, headers=headers)
+        
+        if response.status_code == 200:
+            logger.info(f"Message sent successfully to {to_number}")
+            return True
+        else:
+            logger.error(f"Failed to send message: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error sending WhatsApp message: {str(e)}")
+        return False
+
+# ... rest of the message processing code from my previous response ...
 
 # from app.services.openai_service import generate_response
 import re
