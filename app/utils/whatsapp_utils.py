@@ -2,6 +2,9 @@ import logging
 import os
 import requests
 import json
+import re
+from flask import current_app
+from app.services.openai_service import generate_response as openai_generate_response
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +49,6 @@ def send_whatsapp_message(to_number, message_text):
 
 # ... rest of the message processing code from my previous response ...
 
-# from app.services.openai_service import generate_response
-import re
-
-
 def log_http_response(response):
     logging.info(f"Status: {response.status_code}")
     logging.info(f"Content-type: {response.headers.get('content-type')}")
@@ -66,11 +65,6 @@ def get_text_message_input(recipient, text):
             "text": {"preview_url": False, "body": text},
         }
     )
-
-
-# def generate_response(response):
-#     # Return text in uppercase
-#     return response.upper()
 
 
 def send_message(data):
