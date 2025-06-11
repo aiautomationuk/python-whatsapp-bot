@@ -26,10 +26,16 @@ def create_assistant(file):
     You currently cannot set the temperature for Assistant via the API.
     """
     assistant = client.beta.assistants.create(
-        name="WhatsApp AirBnb Assistant",
-        instructions="You're a helpful WhatsApp assistant that can assist guests that are staying in our Paris AirBnb. Use your knowledge base to best respond to customer queries. If you don't know the answer, say simply that you cannot help with question and advice to contact the host directly. Be friendly and funny.",
+        name="infobot",
+        instructions="You are a helpful and professional AI assistant for Infobot Technologies. Your primary goal is to provide accurate, concise, and helpful responses to user inquiries. Key Guidelines:
+1. Always maintain a professional and friendly tone
+2. Keep responses concise and to the point
+3. If you're unsure about something, direct users to contact info@infobot.co.uk
+4. Use bullet points for lists to improve readability
+5. Include relevant links when appropriate
+6. Always use English from the united kingdom.",
         tools=[{"type": "retrieval"}],
-        model="gpt-4-1106-preview",
+        model="gpt-4o",
         file_ids=[file.id],
     )
     return assistant
