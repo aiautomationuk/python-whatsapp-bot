@@ -3,11 +3,14 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url="https://api.openai.com/v2")
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    default_headers={"OpenAI-Beta": "assistants=v2"}
+)
 
 def create_assistant():
     """
-    Create a new OpenAI Assistant with custom instructions and tools.
+    Create a new OpenAI Assistant with custom instructions and no tools (v2 API).
     """
     assistant = client.beta.assistants.create(
         name="WhatsApp AI Assistant",
@@ -20,7 +23,6 @@ def create_assistant():
         
         If you don't know the answer to something, be honest and say so.
         Always maintain a helpful and positive tone.""",
-        tools=[{"type": "retrieval"}],
         model="gpt-4-1106-preview"
     )
     
