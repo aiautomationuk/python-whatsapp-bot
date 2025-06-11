@@ -50,7 +50,10 @@ def handle_message():
         from_number = message.get("from")
         logging.info(f"Received message from: {from_number}")
         
-        if from_number != "447399662383":  # Ignore messages from our own number
+        # Get the bot's number from configuration
+        bot_number = current_app.config.get("RECIPIENT_WAID", "").replace("+", "")
+        
+        if from_number != bot_number:  # Ignore messages from our own number
             try:
                 if is_valid_whatsapp_message(body):
                     logging.info("Processing valid WhatsApp message")
