@@ -65,8 +65,9 @@ def get_text_message_input(recipient, text):
 
 def send_message(data):
     try:
-        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN")
-        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("PHONE_NUMBER_ID")
+        # Get the access token from environment variables
+        access_token = os.getenv("ACCESS_TOKEN")
+        phone_number_id = os.getenv("PHONE_NUMBER_ID")
         version = os.getenv("VERSION", "v18.0")
         
         if not access_token or not phone_number_id:
@@ -79,9 +80,13 @@ def send_message(data):
         }
 
         url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
+        logger.info(f"Sending message to URL: {url}")
 
         response = requests.post(url, data=data, headers=headers, timeout=10)
-        response.raise_for_status()
+        if response.status_code != 200:
+            logger.error(f"Failed to send message. Status: {response.status_code}, Response: {response.text}")
+            return jsonify({"status": "error", "message": f"Failed to send message: {response.text}"}), response.status_code
+            
         log_http_response(response)
         return response
     except requests.Timeout:
@@ -89,7 +94,7 @@ def send_message(data):
         return jsonify({"status": "error", "message": "Request timed out"}), 408
     except requests.RequestException as e:
         logger.error(f"Request failed due to: {e}")
-        return jsonify({"status": "error", "message": "Failed to send message"}), 500
+        return jsonify({"status": "error", "message": f"Failed to send message: {str(e)}"}), 500
 
 def process_text_for_whatsapp(text):
     # Remove brackets
