@@ -161,6 +161,15 @@ def generate_response(message, user_id, user_name=None):
         if not assistant_id:
             raise ValueError("OPENAI_ASSISTANT_ID not found in environment variables")
         
+        # Log assistant details
+        try:
+            assistant = client.beta.assistants.retrieve(assistant_id)
+            logging.info(f"Using assistant: {assistant.name} (ID: {assistant.id})")
+            logging.info(f"Assistant model: {assistant.model}")
+            logging.info(f"Assistant instructions: {assistant.instructions[:200]}...")
+        except Exception as e:
+            logging.error(f"Error retrieving assistant details: {str(e)}")
+        
         # Run the assistant
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
@@ -183,9 +192,7 @@ def generate_response(message, user_id, user_name=None):
                 logging.error(f"Run failed with status: {run_status.status}")
                 return "I apologize, but I encountered an error while processing your request."
             elif run_status.status == 'requires_action':
-                # Handle function calls if needed
                 logging.info("Run requires action - function calls needed")
-                # Add function call handling here if you have tools enabled
                 
             time.sleep(1)
             wait_time += 1
