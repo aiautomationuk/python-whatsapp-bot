@@ -8,15 +8,39 @@ from app.services.openai_service import generate_response as openai_generate_res
 
 logger = logging.getLogger(__name__)
 
-def send_whatsapp_message(to_number, message_text):
-    """Send WhatsApp message using your existing format"""
+def get_business_number_from_webhook(body):
+    """Extract business phone number from webhook payload"""
     try:
-        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN")
-        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("PHONE_NUMBER_ID")
+        # Get the phone number ID from the webhook
+        phone_number_id = body["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
+        
+        # You might need to maintain a mapping of phone_number_id to business_number
+        # For now, we'll try to extract from environment variables
+        for key in os.environ:
+            if key.startswith("WHATSAPP_PHONE_NUMBER_ID_") and os.getenv(key) == phone_number_id:
+                return key.replace("WHATSAPP_PHONE_NUMBER_ID_", "")
+        
+        # Fallback: return the phone_number_id itself
+        return phone_number_id
+    except (KeyError, IndexError) as e:
+        logger.error(f"Error extracting business number: {e}")
+        return None
+
+def send_whatsapp_message(to_number, message_text, business_number=None):
+    """Send WhatsApp message using business-specific credentials"""
+    try:
+        if business_number:
+            access_token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business_number}")
+            phone_number_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business_number}")
+        else:
+            # Fallback to generic credentials
+            access_token = os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN")
+            phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("PHONE_NUMBER_ID")
+        
         version = os.getenv("VERSION", "v18.0")
         
         if not access_token or not phone_number_id:
-            logger.error("Missing WhatsApp credentials")
+            logger.error(f"Missing WhatsApp credentials for business {business_number}")
             return False
         
         headers = {
@@ -37,7 +61,7 @@ def send_whatsapp_message(to_number, message_text):
         response = requests.post(url, data=data, headers=headers)
         
         if response.status_code == 200:
-            logger.info(f"Message sent successfully to {to_number}")
+            logger.info(f"Message sent successfully to {to_number} via business {business_number}")
             return True
         else:
             logger.error(f"Failed to send message: {response.status_code} - {response.text}")
@@ -79,7 +103,7 @@ def send_message(data, business_number):
         }
 
         url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
-        logger.info(f"Sending message to URL: {url}")
+        logger.info(f"Sending message to URL: {url} for business {business_number}")
 
         response = requests.post(url, data=data, headers=headers, timeout=10)
         if response.status_code != 200:
@@ -115,7 +139,11 @@ def process_text_for_whatsapp(text):
 def process_whatsapp_message(body):
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
     name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
-    logging.info(f"Processing message from {name} ({wa_id})")
+    
+    # Get the business number from the webhook
+    business_number = get_business_number_from_webhook(body)
+    
+    logging.info(f"Processing message from {name} ({wa_id}) for business {business_number}")
 
     message = body["entry"][0]["changes"][0]["value"]["messages"][0]
     message_body = message["text"]["body"]
@@ -129,7 +157,7 @@ def process_whatsapp_message(body):
     logging.info(f"Processed response for WhatsApp: {response}")
 
     data = get_text_message_input(wa_id, response)
-    send_message(data, wa_id)
+    send_message(data, business_number)
 
 def is_valid_whatsapp_message(body):
     """
@@ -144,5 +172,23 @@ def is_valid_whatsapp_message(body):
         and body["entry"][0]["changes"][0]["value"]["messages"][0]
     )
 
-print(os.getenv("WHATSAPP_ACCESS_TOKEN_447464177761"))
-print(os.getenv("WHATSAPP_PHONE_NUMBER_ID_447464177761"))
+def list_configured_businesses():
+    """Helper function to list all configured business numbers"""
+    businesses = []
+    for key in os.environ:
+        if key.startswith("WHATSAPP_ACCESS_TOKEN_"):
+            business_number = key.replace("WHATSAPP_ACCESS_TOKEN_", "")
+            businesses.append(business_number)
+    return businesses
+
+# Debug function - remove in production
+def debug_credentials():
+    businesses = list_configured_businesses()
+    for business in businesses:
+        token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business}")
+        phone_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business}")
+        print(f"Business {business}: Token exists: {bool(token)}, Phone ID exists: {bool(phone_id)}")
+
+# Only run debug in development
+if os.getenv("FLASK_ENV") == "development":
+    debug_credentials()
