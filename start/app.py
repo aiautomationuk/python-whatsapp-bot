@@ -22,7 +22,7 @@ WHATSAPP_TO_ASSISTANT = {
 
 # Default configuration if no mapping is found
 DEFAULT_CONFIG = {
-    "assistant_id": "asst_7Wx2nQwoPWSf710jrdWTDlfE",
+    "assistant_id": "asst_AS82w4Y1Nd6sSR8KhJbIodad",
     "phone_number_id": os.getenv("WHATSAPP_PHONE_NUMBER_ID")  # Your default phone number ID
 }
 
