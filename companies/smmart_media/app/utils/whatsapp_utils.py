@@ -143,3 +143,6 @@ def is_valid_whatsapp_message(body):
         and body["entry"][0]["changes"][0]["value"].get("messages")
         and body["entry"][0]["changes"][0]["value"]["messages"][0]
     )
+
+print(os.getenv("WHATSAPP_ACCESS_TOKEN_447464177761"))
+print(os.getenv("WHATSAPP_PHONE_NUMBER_ID_447464177761"))
