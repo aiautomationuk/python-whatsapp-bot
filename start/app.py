@@ -7,17 +7,24 @@ from dotenv import load_dotenv
 # Import your OpenAI assistant functions
 from openai_assistant import generate_response
 
-# Map WhatsApp business numbers to OpenAI Assistant IDs
-# Replace these with your actual assistant IDs after creating them
+# Map WhatsApp business numbers to OpenAI Assistant IDs AND Phone Number IDs
+# IMPORTANT: Replace these with your ACTUAL Phone Number IDs from Facebook Developer Console
 WHATSAPP_TO_ASSISTANT = {
-    "447464177761": "asst_AS82w4Y1Nd6sSR8KhJbIodad",  # AirBnb Assistant
-    "447510698847": "asst_A2CqaZ1HO1qI6QwjyYIrmqeI",  # Customer Support Assistant
-    # Add more mappings as needed
-    # "1234567890": "asst_ghi123456789",  # Sales Assistant
+    "447464177761": {
+        "assistant_id": "asst_AS82w4Y1Nd6sSR8KhJbIodad",  # infobot
+        "phone_number_id": "627065630497964"  
+    },
+    "447510698847": {
+        "assistant_id": "asst_A2CqaZ1HO1qI6QwjyYIrmqeI",  # Copy of Natalie
+        "phone_number_id": "659535307248611"   
+    },
 }
 
-# Default assistant ID if no mapping is found
-DEFAULT_ASSISTANT_ID = "asst_7Wx2nQwoPWSf710jrdWTDlfE"
+# Default configuration if no mapping is found
+DEFAULT_CONFIG = {
+    "assistant_id": "asst_AS82w4Y1Nd6sSR8KhJbIodad",
+    "phone_number_id": os.getenv("WHATSAPP_PHONE_NUMBER_ID")  # Your default phone number ID
+}
 
 load_dotenv()
 
@@ -27,17 +34,22 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def get_assistant_id(business_number):
+def get_assistant_config(business_number):
     """
-    Get the appropriate assistant ID for a given business number
+    Get the appropriate assistant configuration for a given business number
     """
-    assistant_id = WHATSAPP_TO_ASSISTANT.get(business_number)
-    if not assistant_id:
-        logger.warning(f"No assistant mapping found for {business_number}, using default")
-        assistant_id = DEFAULT_ASSISTANT_ID
+    logger.info(f"🔍 Looking up config for business number: {business_number}")
+    logger.info(f"🗂️ Available mappings: {list(WHATSAPP_TO_ASSISTANT.keys())}")
     
-    logger.info(f"Using assistant {assistant_id} for business number {business_number}")
-    return assistant_id
+    config = WHATSAPP_TO_ASSISTANT.get(business_number)
+    if not config:
+        logger.warning(f"❌ No assistant mapping found for {business_number}, using default")
+        config = DEFAULT_CONFIG
+        logger.info(f"📋 Using default config: {config}")
+    else:
+        logger.info(f"✅ Found config for {business_number}: {config}")
+    
+    return config
 
 def process_whatsapp_message(webhook_data):
     """
@@ -62,11 +74,13 @@ def process_whatsapp_message(webhook_data):
                     # Get business phone number from metadata
                     business_number = metadata.get("display_phone_number")
                     
+                    logger.info(f"📱 Raw business number from metadata: {business_number}")
+                    
                     # Remove any formatting (keep only digits)
                     if business_number:
                         business_number = ''.join(filter(str.isdigit, business_number))
                     
-                    logger.info(f"Processing message for business number: {business_number}")
+                    logger.info(f"📱 Cleaned business number: {business_number}")
                     
                     for message in messages:
                         sender_number = message.get("from")
@@ -74,9 +88,9 @@ def process_whatsapp_message(webhook_data):
                         message_type = message.get("type")
                         timestamp = message.get("timestamp")
                         
-                        logger.info(f"Processing message from: {sender_number}")
-                        logger.info(f"Business number: {business_number}")
-                        logger.info(f"Message type: {message_type}")
+                        logger.info(f"👤 Processing message from: {sender_number}")
+                        logger.info(f"🏢 Business number: {business_number}")
+                        logger.info(f"📝 Message type: {message_type}")
                         
                         # Check if this is NOT from our business number
                         if sender_number != business_number:
@@ -90,94 +104,88 @@ def process_whatsapp_message(webhook_data):
                             if not sender_name:
                                 sender_name = f"User_{sender_number[-4:]}"  # Use last 4 digits as name
                             
-                            # Get the appropriate assistant for this business number
-                            assistant_id = get_assistant_id(business_number)
+                            # Get the appropriate assistant configuration for this business number
+                            config = get_assistant_config(business_number)
                             
                             # Process different message types
                             if message_type == "text":
                                 text_body = message.get("text", {}).get("body", "")
-                                logger.info(f"Text message: {text_body}")
+                                logger.info(f"💬 Text message: {text_body}")
                                 
                                 # Generate response using OpenAI Assistant
                                 response = generate_response(
                                     message_body=text_body,
                                     wa_id=sender_number,
                                     name=sender_name,
-                                    assistant_id=assistant_id
+                                    assistant_id=config["assistant_id"]
                                 )
                                 
-                                # Send response back to user
-                                send_whatsapp_message(sender_number, response, business_number)
+                                # Send response back to user using the correct phone number ID
+                                logger.info(f"📤 About to send response using phone_number_id: {config['phone_number_id']}")
+                                send_whatsapp_message(
+                                    to_number=sender_number, 
+                                    message_text=response, 
+                                    phone_number_id=config["phone_number_id"]
+                                )
                                 
                             elif message_type == "image":
-                                logger.info("Received image message")
+                                logger.info("🖼️ Received image message")
                                 response = generate_response(
                                     message_body="I received an image. How can I help you with it?",
                                     wa_id=sender_number,
                                     name=sender_name,
-                                    assistant_id=assistant_id
+                                    assistant_id=config["assistant_id"]
                                 )
-                                send_whatsapp_message(sender_number, response, business_number)
-                                
-                            elif message_type == "audio":
-                                logger.info("Received audio message")
-                                response = generate_response(
-                                    message_body="I received an audio message. Could you please send a text message instead?",
-                                    wa_id=sender_number,
-                                    name=sender_name,
-                                    assistant_id=assistant_id
+                                send_whatsapp_message(
+                                    to_number=sender_number, 
+                                    message_text=response, 
+                                    phone_number_id=config["phone_number_id"]
                                 )
-                                send_whatsapp_message(sender_number, response, business_number)
-                                
-                            elif message_type == "document":
-                                logger.info("Received document message")
-                                response = generate_response(
-                                    message_body="I received a document. How can I help you with it?",
-                                    wa_id=sender_number,
-                                    name=sender_name,
-                                    assistant_id=assistant_id
-                                )
-                                send_whatsapp_message(sender_number, response, business_number)
                                 
                             else:
-                                logger.info(f"Received unsupported message type: {message_type}")
+                                logger.info(f"❓ Received unsupported message type: {message_type}")
                                 response = "I received your message but I can only respond to text messages at the moment."
-                                send_whatsapp_message(sender_number, response, business_number)
+                                send_whatsapp_message(
+                                    to_number=sender_number, 
+                                    message_text=response, 
+                                    phone_number_id=config["phone_number_id"]
+                                )
                         else:
-                            logger.info("Ignoring message from our own business number")
-                
-                # Handle status updates
-                elif "statuses" in value:
-                    logger.info("Received WhatsApp status update")
-                    statuses = value.get("statuses", [])
-                    for status in statuses:
-                        message_id = status.get("id")
-                        status_type = status.get("status")
-                        recipient_id = status.get("recipient_id")
-                        logger.info(f"Message {message_id} to {recipient_id}: {status_type}")
+                            logger.info("🤖 Ignoring message from our own business number")
                 
     except Exception as e:
-        logger.error(f"Error processing WhatsApp message: {str(e)}")
+        logger.error(f"💥 Error processing WhatsApp message: {str(e)}")
         raise
 
 
-def send_whatsapp_message(to_number, message_text, from_number):
+def send_whatsapp_message(to_number, message_text, phone_number_id):
     """
     Send a WhatsApp message using the WhatsApp Business API
+    Updated to use the specific phone_number_id for each WhatsApp number
     """
     try:
         # Import requests here to avoid circular imports
         import requests
         
-        # WhatsApp Business API endpoint
-        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+        # WhatsApp Business API endpoint - now using the passed phone_number_id
         access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
         
+        logger.info(f"📞 Sending message to: {to_number}")
+        logger.info(f"🆔 Using phone_number_id: {phone_number_id}")
+        logger.info(f"🔐 Access token exists: {bool(access_token)}")
+        
         if not phone_number_id or not access_token:
-            logger.error("Missing WhatsApp credentials")
+            logger.error("❌ Missing WhatsApp credentials")
+            return False
+        
+        # Check if phone_number_id looks like a placeholder
+        if "REPLACE_WITH_ACTUAL" in phone_number_id:
+            logger.error(f"❌ Phone Number ID appears to be a placeholder: {phone_number_id}")
+            logger.error("❌ You need to replace this with your actual Phone Number ID from Facebook Developer Console")
             return False
             
         url = f"https://graph.facebook.com/v18.0/{phone_number_id}/messages"
+        logger.info(f"🌐 API URL: {url}")
         
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -193,17 +201,22 @@ def send_whatsapp_message(to_number, message_text, from_number):
             }
         }
         
+        logger.info(f"📦 Payload: {json.dumps(payload, indent=2)}")
+        
         response = requests.post(url, headers=headers, json=payload)
         
+        logger.info(f"📊 Response status: {response.status_code}")
+        logger.info(f"📊 Response body: {response.text}")
+        
         if response.status_code == 200:
-            logger.info(f"Message sent successfully to {to_number}")
+            logger.info(f"✅ Message sent successfully to {to_number} from phone number ID {phone_number_id}")
             return True
         else:
-            logger.error(f"Failed to send message: {response.status_code} - {response.text}")
+            logger.error(f"❌ Failed to send message: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        logger.error(f"Error sending WhatsApp message: {str(e)}")
+        logger.error(f"💥 Error sending WhatsApp message: {str(e)}")
         return False
 
 
@@ -220,27 +233,27 @@ def webhook():
         challenge = request.args.get('hub.challenge')
         
         if mode == 'subscribe' and token == verify_token:
-            logger.info("Webhook verified successfully")
+            logger.info("✅ Webhook verified successfully")
             return challenge
         else:
-            logger.error("Webhook verification failed")
+            logger.error("❌ Webhook verification failed")
             return "Verification failed", 403
     
     elif request.method == 'POST':
         # Process incoming webhook
         try:
             webhook_data = request.get_json()
-            logger.info(f"Received webhook body: {json.dumps(webhook_data, indent=2)}")
+            logger.info(f"📥 Received webhook body: {json.dumps(webhook_data, indent=2)}")
             
             if webhook_data and webhook_data.get("object") == "whatsapp_business_account":
                 process_whatsapp_message(webhook_data)
                 return jsonify({"status": "success"}), 200
             else:
-                logger.warning("Invalid webhook data received")
+                logger.warning("⚠️ Invalid webhook data received")
                 return jsonify({"status": "invalid"}), 400
                 
         except Exception as e:
-            logger.error(f"Error processing webhook: {str(e)}")
+            logger.error(f"💥 Error processing webhook: {str(e)}")
             return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -249,7 +262,27 @@ def health_check():
     """
     Health check endpoint
     """
-    return jsonify({"status": "healthy", "assistants": list(WHATSAPP_TO_ASSISTANT.keys())}), 200
+    return jsonify({
+        "status": "healthy", 
+        "configured_numbers": list(WHATSAPP_TO_ASSISTANT.keys()),
+        "default_phone_number_id": os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    }), 200
+
+
+@app.route('/debug', methods=['GET'])
+def debug_config():
+    """
+    Debug endpoint to check configuration
+    """
+    return jsonify({
+        "whatsapp_mappings": WHATSAPP_TO_ASSISTANT,
+        "default_config": DEFAULT_CONFIG,
+        "env_vars": {
+            "WHATSAPP_ACCESS_TOKEN": bool(os.getenv("WHATSAPP_ACCESS_TOKEN")),
+            "WHATSAPP_PHONE_NUMBER_ID": os.getenv("WHATSAPP_PHONE_NUMBER_ID"),
+            "WHATSAPP_VERIFY_TOKEN": bool(os.getenv("WHATSAPP_VERIFY_TOKEN"))
+        }
+    }), 200
 
 
 if __name__ == '__main__':
