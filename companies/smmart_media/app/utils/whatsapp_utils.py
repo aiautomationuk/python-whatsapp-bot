@@ -66,9 +66,9 @@ def get_text_message_input(recipient, text):
 def send_message(data):
     try:
         # Get the access token from environment variables
-        access_token = os.getenv("ACCESS_TOKEN")
-        phone_number_id = os.getenv("PHONE_NUMBER_ID")
-        version = os.getenv("VERSION", "v18.0")
+        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN_447464177761")
+        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID_447464177761")
+        version = os.getenv("VERSION", "v23.0")
         
         if not access_token or not phone_number_id:
             logger.error("Missing WhatsApp credentials")
