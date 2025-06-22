@@ -11,18 +11,18 @@ from openai_assistant import generate_response
 WHATSAPP_TO_ASSISTANT = {
     "447464177761": {
         "assistant_id": "asst_AS82w4Y1Nd6sSR8KhJbIodad",  # AirBnb Assistant
-        "phone_number_id": "YOUR_PHONE_NUMBER_ID_FOR_447464177761"  # Add this
+        "phone_number_id": "627065630497964"  # Add this
     },
     "447510698847": {
         "assistant_id": "asst_A2CqaZ1HO1qI6QwjyYIrmqeI",  # Customer Support Assistant
-        "phone_number_id": "YOUR_PHONE_NUMBER_ID_FOR_447510698847"  # Add this
+        "phone_number_id": "659535307248611"  # Add this
     },
     # Add more mappings as needed
 }
 
 # Default configuration if no mapping is found
 DEFAULT_CONFIG = {
-    "assistant_id": "asst_7Wx2nQwoPWSf710jrdWTDlfE",
+    "assistant_id": asst_AS82w4Y1Nd6sSR8KhJbIodad",
     "phone_number_id": os.getenv("WHATSAPP_PHONE_NUMBER_ID")  # Your default phone number ID
 }
 
