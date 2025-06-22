@@ -57,7 +57,7 @@ def store_thread(wa_id, thread_id):
 # --------------------------------------------------------------
 # Generate response
 # --------------------------------------------------------------
-def generate_response(message_body, wa_id, name):
+def generate_response(message_body, wa_id, name, assistant_id=None):
     # Check if there is already a thread_id for the wa_id
     thread_id = check_if_thread_exists(wa_id)
 
@@ -81,7 +81,7 @@ def generate_response(message_body, wa_id, name):
     )
 
     # Run the assistant and get the new message
-    new_message = run_assistant(thread)
+    new_message = run_assistant(thread, assistant_id)
     print(f"To {name}:", new_message)
     return new_message
 
@@ -89,9 +89,11 @@ def generate_response(message_body, wa_id, name):
 # --------------------------------------------------------------
 # Run assistant
 # --------------------------------------------------------------
-def run_assistant(thread):
+def run_assistant(thread, assistant_id=None):
     # Retrieve the Assistant
-    assistant = client.beta.assistants.retrieve("asst_7Wx2nQwoPWSf710jrdWTDlfE")
+    if assistant_id is None:
+        assistant_id = "asst_7Wx2nQwoPWSf710jrdWTDlfE"  # Default assistant ID
+    assistant = client.beta.assistants.retrieve(assistant_id)
 
     # Run the assistant
     run = client.beta.threads.runs.create(

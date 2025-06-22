@@ -7,6 +7,13 @@ from dotenv import load_dotenv
 # Import your OpenAI assistant functions
 from openai_assistant import generate_response
 
+# Map WhatsApp business numbers to OpenAI Assistant IDs
+WHATSAPP_TO_ASSISTANT = {
+    "447464177761": "openai-assistant-id-1",  # Example: UK number
+    "441234567890": "openai-assistant-id-2",  # Example: another number
+    # Add more as needed
+}
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -66,7 +73,8 @@ def process_whatsapp_message(webhook_data):
                                 logger.info(f"Text message: {text_body}")
                                 
                                 # Generate response using OpenAI Assistant
-                                response = generate_response(text_body, sender_number, sender_name)
+                                assistant_id = WHATSAPP_TO_ASSISTANT.get(business_number)
+                                response = generate_response(text_body, sender_number, sender_name, assistant_id=assistant_id)
                                 
                                 # Send response back to user
                                 send_whatsapp_message(sender_number, response, business_number)
