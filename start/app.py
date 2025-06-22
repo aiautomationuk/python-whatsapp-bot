@@ -10,11 +10,11 @@ from openai_assistant import generate_response
 # Map WhatsApp business numbers to OpenAI Assistant IDs AND Phone Number IDs
 WHATSAPP_TO_ASSISTANT = {
     "447464177761": {
-        "assistant_id": "asst_AS82w4Y1Nd6sSR8KhJbIodad",  # AirBnb Assistant
+        "assistant_id": "asst_AS82w4Y1Nd6sSR8KhJbIodad",  # infobot
         "phone_number_id": "627065630497964"  # Add this
     },
     "447510698847": {
-        "assistant_id": "asst_A2CqaZ1HO1qI6QwjyYIrmqeI",  # Customer Support Assistant
+        "assistant_id": "asst_A2CqaZ1HO1qI6QwjyYIrmqeI",  # Copy of Natalie
         "phone_number_id": "659535307248611"  # Add this
     },
     # Add more mappings as needed
