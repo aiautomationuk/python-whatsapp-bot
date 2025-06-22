@@ -17,8 +17,8 @@ def get_business_number_from_webhook(body):
         # You might need to maintain a mapping of phone_number_id to business_number
         # For now, we'll try to extract from environment variables
         for key in os.environ:
-            if key.startswith("WHATSAPP_PHONE_NUMBER_ID_") and os.getenv(key) == phone_number_id:
-                return key.replace("WHATSAPP_PHONE_NUMBER_ID_", "")
+            if key.startswith("WHATSAPP_PHONE_NUMBER_ID_447464177761") and os.getenv(key) == phone_number_id:
+                return key.replace("WHATSAPP_PHONE_NUMBER_ID_447464177761", "")
         
         # Fallback: return the phone_number_id itself
         return phone_number_id
@@ -30,8 +30,8 @@ def send_whatsapp_message(to_number, message_text, business_number=None):
     """Send WhatsApp message using business-specific credentials"""
     try:
         if business_number:
-            access_token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business_number}")
-            phone_number_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business_number}")
+            access_token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_447464177761{business_number}")
+            phone_number_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_447464177761{business_number}")
         else:
             # Fallback to generic credentials
             access_token = os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN")
