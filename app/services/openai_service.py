@@ -10,7 +10,6 @@ import json
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
 client = OpenAI(
     api_key=OPENAI_API_KEY,
@@ -19,6 +18,25 @@ client = OpenAI(
 
 # Thread storage file path
 THREAD_DB_PATH = "threads.db"
+
+def get_assistant_id_for_business(business_number):
+    """Get the assistant ID for a specific business number"""
+    if business_number:
+        assistant_id = os.getenv(f"OPENAI_ASSISTANT_ID_{business_number}")
+        if assistant_id:
+            return assistant_id
+    
+    # Fallback to generic assistant ID
+    assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
+    if assistant_id:
+        return assistant_id
+    
+    # If no business-specific or generic assistant ID found, use the first available
+    for key in os.environ:
+        if key.startswith("OPENAI_ASSISTANT_ID_"):
+            return os.getenv(key)
+    
+    return None
 
 
 def upload_file(file_path):
@@ -150,7 +168,7 @@ def remove_thread(user_id):
         logging.error(f"Error removing thread: {str(e)}")
 
 
-def generate_response(message, user_id, user_name=None):
+def generate_response(message, user_id, user_name=None, business_number=None):
     """
     Generate a response using OpenAI's Assistant API.
     """
@@ -165,15 +183,15 @@ def generate_response(message, user_id, user_name=None):
             content=message
         )
         
-        # Get assistant ID from environment variable
-        assistant_id = OPENAI_ASSISTANT_ID
+        # Get assistant ID for the business
+        assistant_id = get_assistant_id_for_business(business_number)
         if not assistant_id:
-            raise ValueError("OPENAI_ASSISTANT_ID not found in environment variables")
+            raise ValueError("No OpenAI Assistant ID found in environment variables")
         
         # Log assistant details
         try:
             assistant = client.beta.assistants.retrieve(assistant_id)
-            logging.info(f"Using assistant: {assistant.name} (ID: {assistant.id})")
+            logging.info(f"Using assistant: {assistant.name} (ID: {assistant.id}) for business {business_number}")
             logging.info(f"Assistant model: {assistant.model}")
             logging.info(f"Assistant instructions: {assistant.instructions[:200]}...")
         except Exception as e:
@@ -219,13 +237,13 @@ def generate_response(message, user_id, user_name=None):
         
         if messages.data and messages.data[0].content:
             response = messages.data[0].content[0].text.value
-            logging.info(f"Generated response for user {user_id}: {response[:100]}...")
+            logging.info(f"Generated response for user {user_id} (business {business_number}): {response[:100]}...")
             return response
             
         return "I apologize, but I couldn't generate a response at this time."
         
     except Exception as e:
-        logging.error(f"Error generating response for user {user_id}: {str(e)}")
+        logging.error(f"Error generating response for user {user_id} (business {business_number}): {str(e)}")
         return "I apologize, but I encountered an error while processing your request."
 
 

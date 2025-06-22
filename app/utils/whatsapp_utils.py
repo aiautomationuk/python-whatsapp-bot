@@ -8,16 +8,75 @@ from app.services.openai_service import generate_response as openai_generate_res
 
 logger = logging.getLogger(__name__)
 
-def send_whatsapp_message(to_number, message_text):
-    """Send WhatsApp message using your existing format"""
+def get_business_number_from_webhook(body):
+    """Extract business phone number from webhook payload"""
     try:
-        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN")
-        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("PHONE_NUMBER_ID")
-        version = os.getenv("VERSION", "v18.0")
+        # Get the phone number ID from the webhook
+        phone_number_id = body["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
         
-        if not access_token or not phone_number_id:
-            logger.error("Missing WhatsApp credentials")
+        # Try to find matching business number by phone_number_id
+        for key in os.environ:
+            if key.startswith("WHATSAPP_PHONE_NUMBER_ID_"):
+                business_number = key.replace("WHATSAPP_PHONE_NUMBER_ID_", "")
+                if os.getenv(key) == phone_number_id:
+                    logger.info(f"Found business number {business_number} for phone_number_id {phone_number_id}")
+                    return business_number
+        
+        # If no match found, log available configurations
+        logger.warning(f"No business number found for phone_number_id: {phone_number_id}")
+        logger.info(f"Available business configurations: {list_configured_businesses()}")
+        
+        # Return the first configured business as fallback
+        businesses = list_configured_businesses()
+        if businesses:
+            logger.info(f"Using fallback business: {businesses[0]}")
+            return businesses[0]
+        
+        return None
+        
+    except (KeyError, IndexError) as e:
+        logger.error(f"Error extracting business number from webhook: {e}")
+        logger.error(f"Webhook body structure: {json.dumps(body, indent=2)}")
+        return None
+
+def validate_credentials(business_number):
+    """Validate that all required credentials exist for a business number"""
+    if not business_number:
+        return False, "No business number provided"
+    
+    access_token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business_number}")
+    phone_number_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business_number}")
+    
+    if not access_token:
+        return False, f"Missing WHATSAPP_ACCESS_TOKEN_{business_number}"
+    
+    if not phone_number_id:
+        return False, f"Missing WHATSAPP_PHONE_NUMBER_ID_{business_number}"
+    
+    return True, "Credentials valid"
+
+def send_whatsapp_message(to_number, message_text, business_number=None):
+    """Send WhatsApp message using business-specific credentials"""
+    try:
+        # If no business number provided, try to get from environment
+        if not business_number:
+            businesses = list_configured_businesses()
+            if businesses:
+                business_number = businesses[0]
+                logger.info(f"Using default business number: {business_number}")
+            else:
+                logger.error("No business numbers configured")
+                return False
+        
+        # Validate credentials first
+        is_valid, error_msg = validate_credentials(business_number)
+        if not is_valid:
+            logger.error(f"Credential validation failed: {error_msg}")
             return False
+        
+        access_token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business_number}")
+        phone_number_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business_number}")
+        version = os.getenv("VERSION", "v18.0")
         
         headers = {
             "Content-type": "application/json",
@@ -37,7 +96,7 @@ def send_whatsapp_message(to_number, message_text):
         response = requests.post(url, data=data, headers=headers)
         
         if response.status_code == 200:
-            logger.info(f"Message sent successfully to {to_number}")
+            logger.info(f"Message sent successfully to {to_number} via business {business_number}")
             return True
         else:
             logger.error(f"Failed to send message: {response.status_code} - {response.text}")
@@ -63,16 +122,27 @@ def get_text_message_input(recipient, text):
         }
     )
 
-def send_message(data):
+def send_message(data, business_number=None):
     try:
-        # Get the access token from environment variables
-        access_token = os.getenv("ACCESS_TOKEN")
-        phone_number_id = os.getenv("PHONE_NUMBER_ID")
-        version = os.getenv("VERSION", "v18.0")
+        # If no business number provided, try to get from environment
+        if not business_number:
+            businesses = list_configured_businesses()
+            if businesses:
+                business_number = businesses[0]
+                logger.info(f"Using default business number: {business_number}")
+            else:
+                logger.error("No business numbers configured")
+                return jsonify({"status": "error", "message": "No business numbers configured"}), 500
         
-        if not access_token or not phone_number_id:
-            logger.error("Missing WhatsApp credentials")
-            return jsonify({"status": "error", "message": "Missing WhatsApp credentials"}), 500
+        # Validate credentials first
+        is_valid, error_msg = validate_credentials(business_number)
+        if not is_valid:
+            logger.error(f"Credential validation failed: {error_msg}")
+            return jsonify({"status": "error", "message": error_msg}), 500
+
+        access_token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business_number}")
+        phone_number_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business_number}")
+        version = os.getenv("VERSION", "v18.0")
 
         headers = {
             "Content-type": "application/json",
@@ -80,7 +150,7 @@ def send_message(data):
         }
 
         url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
-        logger.info(f"Sending message to URL: {url}")
+        logger.info(f"Sending message to URL: {url} for business {business_number}")
 
         response = requests.post(url, data=data, headers=headers, timeout=10)
         if response.status_code != 200:
@@ -89,6 +159,7 @@ def send_message(data):
             
         log_http_response(response)
         return response
+        
     except requests.Timeout:
         logger.error("Timeout occurred while sending message")
         return jsonify({"status": "error", "message": "Request timed out"}), 408
@@ -114,23 +185,40 @@ def process_text_for_whatsapp(text):
     return whatsapp_style_text
 
 def process_whatsapp_message(body):
-    wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
-    name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
-    logging.info(f"Processing message from {name} ({wa_id})")
+    try:
+        wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
+        name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+        
+        # Get the business number from the webhook
+        business_number = get_business_number_from_webhook(body)
+        
+        if not business_number:
+            logger.error("Could not determine business number from webhook")
+            logger.error(f"Available businesses: {list_configured_businesses()}")
+            return False
+        
+        logging.info(f"Processing message from {name} ({wa_id}) for business {business_number}")
 
-    message = body["entry"][0]["changes"][0]["value"]["messages"][0]
-    message_body = message["text"]["body"]
-    logging.info(f"Message content: {message_body}")
+        message = body["entry"][0]["changes"][0]["value"]["messages"][0]
+        message_body = message["text"]["body"]
+        logging.info(f"Message content: {message_body}")
 
-    # Generate response using OpenAI Assistant
-    response = openai_generate_response(message_body, wa_id, name)
-    logging.info(f"OpenAI response: {response}")
-    
-    response = process_text_for_whatsapp(response)
-    logging.info(f"Processed response for WhatsApp: {response}")
+        # Generate response using OpenAI Assistant with business number
+        response = openai_generate_response(message_body, wa_id, name, business_number)
+        logging.info(f"OpenAI response: {response}")
+        
+        response = process_text_for_whatsapp(response)
+        logging.info(f"Processed response for WhatsApp: {response}")
 
-    data = get_text_message_input(wa_id, response)
-    send_message(data)
+        data = get_text_message_input(wa_id, response)
+        result = send_message(data, business_number)
+        
+        return True
+        
+    except (KeyError, IndexError) as e:
+        logger.error(f"Error processing WhatsApp message: {e}")
+        logger.error(f"Message body: {json.dumps(body, indent=2)}")
+        return False
 
 def is_valid_whatsapp_message(body):
     """
@@ -144,3 +232,35 @@ def is_valid_whatsapp_message(body):
         and body["entry"][0]["changes"][0]["value"].get("messages")
         and body["entry"][0]["changes"][0]["value"]["messages"][0]
     )
+
+def list_configured_businesses():
+    """Helper function to list all configured business numbers"""
+    businesses = []
+    for key in os.environ:
+        if key.startswith("WHATSAPP_ACCESS_TOKEN_"):
+            business_number = key.replace("WHATSAPP_ACCESS_TOKEN_", "")
+            businesses.append(business_number)
+    return businesses
+
+def debug_credentials():
+    """Debug function to check credential configuration"""
+    businesses = list_configured_businesses()
+    logger.info(f"Found {len(businesses)} configured businesses: {businesses}")
+    
+    for business in businesses:
+        token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business}")
+        phone_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business}")
+        
+        token_status = "✓" if token else "✗"
+        phone_status = "✓" if phone_id else "✗"
+        
+        logger.info(f"Business {business}: Token {token_status}, Phone ID {phone_status}")
+        
+        if token:
+            logger.debug(f"  Token preview: {token[:20]}...")
+        if phone_id:
+            logger.debug(f"  Phone ID: {phone_id}")
+
+# Only run debug in development
+if os.getenv("FLASK_ENV") == "development":
+    debug_credentials()
