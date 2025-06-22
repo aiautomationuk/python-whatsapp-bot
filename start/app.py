@@ -10,7 +10,7 @@ from openai_assistant import generate_response
 # Map WhatsApp business numbers to OpenAI Assistant IDs
 WHATSAPP_TO_ASSISTANT = {
     "447464177761": "openai-assistant-id-1",  # Example: UK number
-    "441234567890": "openai-assistant-id-2",  # Example: another number
+    "447510698847": "openai-assistant-id-2",  # Example: another number
     # Add more as needed
 }
 
