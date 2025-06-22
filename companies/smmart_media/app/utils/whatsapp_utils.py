@@ -63,16 +63,15 @@ def get_text_message_input(recipient, text):
         }
     )
 
-def send_message(data):
+def send_message(data, business_number):
     try:
-        # Get the access token from environment variables
-        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN_447464177761")
-        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID_447464177761")
+        access_token = os.getenv(f"WHATSAPP_ACCESS_TOKEN_{business_number}")
+        phone_number_id = os.getenv(f"WHATSAPP_PHONE_NUMBER_ID_{business_number}")
         version = os.getenv("VERSION", "v23.0")
         
         if not access_token or not phone_number_id:
-            logger.error("Missing WhatsApp credentials")
-            return jsonify({"status": "error", "message": "Missing WhatsApp credentials"}), 500
+            logger.error(f"Missing WhatsApp credentials for {business_number}")
+            return jsonify({"status": "error", "message": f"Missing WhatsApp credentials for {business_number}"}), 500
 
         headers = {
             "Content-type": "application/json",
@@ -130,7 +129,7 @@ def process_whatsapp_message(body):
     logging.info(f"Processed response for WhatsApp: {response}")
 
     data = get_text_message_input(wa_id, response)
-    send_message(data)
+    send_message(data, wa_id)
 
 def is_valid_whatsapp_message(body):
     """
