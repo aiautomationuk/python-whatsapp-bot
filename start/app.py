@@ -8,11 +8,16 @@ from dotenv import load_dotenv
 from openai_assistant import generate_response
 
 # Map WhatsApp business numbers to OpenAI Assistant IDs
+# Replace these with your actual assistant IDs after creating them
 WHATSAPP_TO_ASSISTANT = {
-    "447464177761": "openai-assistant-id-1",  # Example: UK number
-    "441234567890": "openai-assistant-id-2",  # Example: another number
-    # Add more as needed
+    "447464177761": "asst_AS82w4Y1Nd6sSR8KhJbIodad",  # AirBnb Assistant
+    "447510698847": "asst_A2CqaZ1HO1qI6QwjyYIrmqeI",  # Customer Support Assistant
+    # Add more mappings as needed
+    # "1234567890": "asst_ghi123456789",  # Sales Assistant
 }
+
+# Default assistant ID if no mapping is found
+DEFAULT_ASSISTANT_ID = "asst_7Wx2nQwoPWSf710jrdWTDlfE"
 
 load_dotenv()
 
@@ -22,8 +27,17 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Your WhatsApp Business phone number (the one you send FROM)
-BUSINESS_PHONE_NUMBER = os.getenv("WHATSAPP_BUSINESS_NUMBER", "447464177761")
+def get_assistant_id(business_number):
+    """
+    Get the appropriate assistant ID for a given business number
+    """
+    assistant_id = WHATSAPP_TO_ASSISTANT.get(business_number)
+    if not assistant_id:
+        logger.warning(f"No assistant mapping found for {business_number}, using default")
+        assistant_id = DEFAULT_ASSISTANT_ID
+    
+    logger.info(f"Using assistant {assistant_id} for business number {business_number}")
+    return assistant_id
 
 def process_whatsapp_message(webhook_data):
     """
@@ -48,6 +62,12 @@ def process_whatsapp_message(webhook_data):
                     # Get business phone number from metadata
                     business_number = metadata.get("display_phone_number")
                     
+                    # Remove any formatting (keep only digits)
+                    if business_number:
+                        business_number = ''.join(filter(str.isdigit, business_number))
+                    
+                    logger.info(f"Processing message for business number: {business_number}")
+                    
                     for message in messages:
                         sender_number = message.get("from")
                         message_id = message.get("id")
@@ -67,34 +87,56 @@ def process_whatsapp_message(webhook_data):
                                     sender_name = contact.get("profile", {}).get("name")
                                     break
                             
+                            if not sender_name:
+                                sender_name = f"User_{sender_number[-4:]}"  # Use last 4 digits as name
+                            
+                            # Get the appropriate assistant for this business number
+                            assistant_id = get_assistant_id(business_number)
+                            
                             # Process different message types
                             if message_type == "text":
                                 text_body = message.get("text", {}).get("body", "")
                                 logger.info(f"Text message: {text_body}")
                                 
                                 # Generate response using OpenAI Assistant
-                                assistant_id = WHATSAPP_TO_ASSISTANT.get(business_number)
-                                response = generate_response(text_body, sender_number, sender_name, assistant_id=assistant_id)
+                                response = generate_response(
+                                    message_body=text_body,
+                                    wa_id=sender_number,
+                                    name=sender_name,
+                                    assistant_id=assistant_id
+                                )
                                 
                                 # Send response back to user
                                 send_whatsapp_message(sender_number, response, business_number)
                                 
                             elif message_type == "image":
                                 logger.info("Received image message")
-                                # Handle image messages
-                                response = "I can see you sent an image. How can I help you with it?"
+                                response = generate_response(
+                                    message_body="I received an image. How can I help you with it?",
+                                    wa_id=sender_number,
+                                    name=sender_name,
+                                    assistant_id=assistant_id
+                                )
                                 send_whatsapp_message(sender_number, response, business_number)
                                 
                             elif message_type == "audio":
                                 logger.info("Received audio message")
-                                # Handle audio messages
-                                response = "I received your audio message. Could you please send a text message instead?"
+                                response = generate_response(
+                                    message_body="I received an audio message. Could you please send a text message instead?",
+                                    wa_id=sender_number,
+                                    name=sender_name,
+                                    assistant_id=assistant_id
+                                )
                                 send_whatsapp_message(sender_number, response, business_number)
                                 
                             elif message_type == "document":
                                 logger.info("Received document message")
-                                # Handle document messages
-                                response = "I can see you sent a document. How can I help you with it?"
+                                response = generate_response(
+                                    message_body="I received a document. How can I help you with it?",
+                                    wa_id=sender_number,
+                                    name=sender_name,
+                                    assistant_id=assistant_id
+                                )
                                 send_whatsapp_message(sender_number, response, business_number)
                                 
                             else:
@@ -200,6 +242,14 @@ def webhook():
         except Exception as e:
             logger.error(f"Error processing webhook: {str(e)}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Health check endpoint
+    """
+    return jsonify({"status": "healthy", "assistants": list(WHATSAPP_TO_ASSISTANT.keys())}), 200
 
 
 if __name__ == '__main__':

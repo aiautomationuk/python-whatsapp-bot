@@ -3,7 +3,7 @@ import json
 import shutil
 from datetime import datetime
 from dotenv import load_dotenv
-import openai
+from openai import OpenAI
 import logging
 
 # Configure logging
@@ -56,7 +56,7 @@ COMPANY_INFO_FILE={company_info_file}
 """
         
         # Create new assistant for the company
-        client = openai.OpenAI()
+        client = OpenAI(default_headers={"OpenAI-Beta": "assistants=v2"})
         
         # Create assistant
         assistant = client.beta.assistants.create(
@@ -66,11 +66,11 @@ COMPANY_INFO_FILE={company_info_file}
             If you don't know something, say "I don't have that information. Please contact {company_name} directly."
             Keep responses concise and professional.""",
             model="gpt-4-turbo-preview",
-            tools=[{"type": "retrieval"}]
+            tools=[{"type": "file_search"}]
         )
         
         # Create vector store
-        vector_store = client.beta.vector_stores.create(
+        vector_store = client.vector_stores.create(
             name=f"{company_name} Knowledge Base"
         )
         
@@ -84,7 +84,7 @@ COMPANY_INFO_FILE={company_info_file}
         # Update assistant with vector store
         client.beta.assistants.update(
             assistant_id=assistant.id,
-            tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
+            tools=[{"type": "file_search", "vector_store_ids": [str(vector_store.id)]}]
         )
         
         # Write .env file
